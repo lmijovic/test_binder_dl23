@@ -9,6 +9,8 @@ from sklearn.preprocessing import StandardScaler
 
 import numpy as np
 import pandas as pd 
+import pickle
+
 
 def classifier(num_feat):
     # Inputs
@@ -36,7 +38,10 @@ def adversary(num_gmm):
     x2 = Dense(100, activation = 'relu')(x1)      
     x3 = Dense(50, activation = 'relu')(x2)      
     
-    # Gaussian mixture model (GMM) components
+    # Gaussian mixture model (GMM):
+    # The myy distribution guessed by Adversary is represented as a mixture of Gaussians;
+    # the adversary is tasked with setting the normalization coefficients,
+    # means, and widths of these Gaussians 
     coeffs = Dense(num_gmm, activation='softmax')(x3)  # GMM coefficients sum to one
     means  = Dense(num_gmm, activation='sigmoid')(x3)  # Means are on [0, 1]
     widths = Dense(num_gmm, activation='softplus')(x3)  # Widths are positive
@@ -47,6 +52,8 @@ def adversary(num_gmm):
     return Model(inputs = [i, myy], outputs = pdf, name = 'adversary')
 
 
+# ANN;
+# lr_ratio = learning rate ratio
 def combined(clf, adv, lambda_reg, lr_ratio):
     # Inputs
     clf_input = Input(shape = clf.layers[0].input_shape[0][1])
@@ -80,7 +87,7 @@ np.random.seed(42)
 
 #-----------------------------------------------------------------------
 # Import data
-data=pd.read_csv('data_test.csv')
+data=pd.read_csv('data.csv')
 print('Imported data:')
 print(data.head(4))
 
@@ -92,40 +99,47 @@ y = data['label'].values
 # classifier inputs are photon 4-momenta
 X = data[['pt_y1','eta_y1','phi_y1','e_y1',
          'pt_y2','eta_y2','phi_y2','e_y2']].values
+      
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test, myy_train, myy_test \
+    = train_test_split(X, y, myy, test_size = 0.30, random_state = 42)
 
 # Normalize X data
 normalize = StandardScaler()
-X = normalize.fit_transform(X)
-      
-# Split data into training and testing sets
-X_train, X_test, y_train, y_test, myy_train, myy_test = train_test_split(X, y, myy, test_size = 0.30, random_state = 42)
+X_train = normalize.fit_transform(X_train)
+X_test = normalize.fit_transform(X_test)
 
-#------------------------------------------------------------------------
-print('\n =============== 1) Standalone classifier  =============== \n ')
 # Number of samples, features, epochs & batch size
 num_samples = X_train.shape[0]
 num_feat = X_train.shape[1]
-num_epochs = 20
-batch = 500
+num_epochs = 10
+batch = 5000
 
+#------------------------------------------------------------------------
+print('\n =============== 1) Standalone classifier  =============== \n ')
 clf_standalone = classifier(num_feat)
 clf_standalone.compile(optimizer='adam', loss='binary_crossentropy')
 hist_clf_standalone = clf_standalone.fit(X_train, y_train,
-                                         epochs = num_epochs, batch_size = batch,
-                                         validation_split = 0.2, verbose = 2)
+                                         epochs = num_epochs,
+                                         batch_size = batch,
+                                         validation_split = 0.2,
+                                         verbose = 2)
 
 # generate predictions & store results 
 y_pred = clf_standalone.predict(X_test).flatten()
 res = np.array([myy_test.T, y_pred, y_test])
-np.savetxt('clf_results.csv', res.T, delimiter = ',')
+np.savetxt('clf_standalone_results.csv', res.T, delimiter = ',')
 
+# store training history 
+with open('clf_standalone_history.pckl', 'wb') as file_pi:
+    pickle.dump(hist_clf_standalone.history, file_pi)
+    
 #------------------------------------------------------------------------
-print('\n ================== 3) Adversarial training ================ \n ')
-
+print('\n ================== 2) Adversarial training ================ \n ')
 
 # Define parameters for combined network
 lambda_reg = 3             # Regularization parameter 
-num_gmm = 5                # Number of GMM components
+num_gmm = 5                # Number of Gaussian Mixture Model components
 lr = 1e-5                 # Relative learning rates for classifier and adversary
 
 loss_weights = [lr, lambda_reg]
@@ -164,8 +178,6 @@ y_pred = clf.predict(X_test).flatten()
 res = np.array([myy_test.T, y_pred, y_test])
 np.savetxt('ANN_results.csv', res.T, delimiter = ',')
 
-#------------------------------------------------------------------------
-print('\n =============== Run Finished  =============== \n ')
-print('\n Check if the following files are non-empty: \n'   )
-print('  - \n clf_results.csv'   )
-print('  - \n ANN_results.csv'   )
+# store training history 
+with open('ANN_history.pckl', 'wb') as file_pi:
+    pickle.dump(hist_ANN.history, file_pi)

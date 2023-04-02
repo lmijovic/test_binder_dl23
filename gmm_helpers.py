@@ -1,8 +1,16 @@
-# -*- coding: utf-8 -*-
 """
-Created on Thu Oct 28 10:25:44 2021
+adapted from code by A. Sogaard, J. Curran, K. Farmer
 
-@author: keira
+Gaussian Mixture Model helpers 
+
+The adversary is tasked with guessing myy;
+
+it predicts a myy probability density function (pdf),
+which is compared to the actual myy.
+
+The pdf is formed as a sum of Gaussian distributions,
+this module contains helpers to construct it. 
+
 """
 
 import numpy as np

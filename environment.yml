@@ -1,0 +1,13 @@
+name: DeepLearn23
+channels:
+  - conda-forge
+dependencies:
+  - numpy
+  - matplotlib
+  - pandas
+  - keras
+  - tensorflow
+  - pandas
+  - scikit-learn
+  - scipy
+

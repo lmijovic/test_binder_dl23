@@ -1,20 +1,20 @@
-# -*- coding: utf-8 -*-
 """
-Created on Tue Nov  9 14:12:01 2021
 
-@author: keira
+adapted from code by A. Sogaard, J. Curran, K. Farmer
+
+Unconventional Keras layers, needed by the ANN:
+- gradient reversal layer, connecting classifier and adversary networks
+- adversary posterior layer to asses if the adversary can guess the myy 
+
 """
 
 import keras.backend as K
 from keras.layers import Layer
-import ops
+import gmm_helpers
 import tensorflow as tf
 import tensorflow.compat.v1 as v1
 
 tf.compat.v1.disable_eager_execution()
-print('Eager exc', tf.executing_eagerly())
-print('tensorflow: %s' % tf.__version__)
-
 
 num_gradient_reversals = 0
 
@@ -32,8 +32,6 @@ def ReverseGradient (hp_lambda):
         def _flip_gradients(op, grad):
             return [tf.negative(grad) * hp_lambda]
 
-        #g = K.get_session().graph
-        #g = tf.Graph()
         g = v1.keras.backend.get_session().graph
         with g.gradient_override_map({'Identity': grad_name}):
             y = tf.identity(X)
@@ -59,7 +57,7 @@ class GradientReversalLayer(Layer):
 
         Parameters
         ----------
-        x : of the format [coeffs, means, widths, m]
+        x : of the format [coeffs, means, widths, myy]
 
         '''
         return self.gr_op(x)
@@ -73,14 +71,11 @@ class PosteriorLayer(Layer):
 
         Parameters
         ----------
-        nb_gmm : TYPE
-            DESCRIPTION.
-        **kwargs : TYPE
-            DESCRIPTION.
+        nb_gmm : number of Gaussians in the GMM
 
         Returns
         -------
-        Custom layer, models the posterior probability distribution for the diphoton mass using
+        Custom layer, models the posterior probability distribution for the myy using
         a Gaussian mixture model (GMM)
 
         '''
@@ -90,15 +85,13 @@ class PosteriorLayer(Layer):
         self.num_gmm = num_gmm
         
     
-    def call(self, x, mask = None):
+    def call(self, x):
         '''
         
 
         Parameters
         ----------
         x : of the format [coeffs, means, widths, m] 
-        mask : TYPE, optional
-            DESCRIPTION. The default is None.
 
         Returns
         -------
@@ -107,6 +100,6 @@ class PosteriorLayer(Layer):
         '''
         coeffs, means, widths, m = x
         
-        pdf = ops.GMM(m[:,0], coeffs, means, widths, self.num_gmm)
+        pdf = gmm_helpers.GMM(m[:,0], coeffs, means, widths, self.num_gmm)
         
         return K.flatten(pdf)
